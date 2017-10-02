@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 __author__ = 'Erick Almeida and Masroor Ehsan'
 
-import urlparse
 import os
 import gc
 import threading
@@ -34,6 +33,10 @@ class AbstractConnectionPool(object):
             del kwargs['debug']
         self._db_config = kwargs
         self._dsn = kwargs.get('dsn', None)
+        self._disable_pooling_log = False
+
+    def _log(self, msg):
+        self._log_internal(msg)
 
     def _log_internal(self, msg):
         """Debugging information logging."""
@@ -48,7 +51,7 @@ class AbstractConnectionPool(object):
         else:
             conn = psycopg2.connect(**self._db_config)
 
-        if not self._disable_pooling:
+        if not self._disable_pooling_log:
             if key is not None:
                 self._used[key] = conn
                 self._rused[id(conn)] = key
@@ -268,20 +271,7 @@ def config_pool(max_conn=5, expiration=60, disable_pooling=False, pool_manager=S
 
     config = None
     dsn = kwargs.get('dsn', os.environ.get('DATABASE_DSN'))
-    db_url = kwargs.get('db_url', os.environ.get('DATABASE_URL'))
     debug = kwargs.get('debug', False)
-
-    if not dsn:
-        if db_url:
-            params = urlparse.urlparse(db_url)
-            config = {'database': params.path[1:],
-                      'user': params.username,
-                      'password': params.password,
-                      'host': params.hostname,
-                      'port': params.port}
-        else:
-            config = kwargs
-            config['host'] = kwargs.get('host', 'localhost')
 
     if not dsn and not config:
         raise Exception('No database configuration provided')
@@ -292,17 +282,6 @@ def config_pool(max_conn=5, expiration=60, disable_pooling=False, pool_manager=S
                                         disable_pooling=disable_pooling,
                                         dsn=dsn,
                                         debug=debug)
-    else:
-        __pool_manager__ = pool_manager(expiration=expiration,
-                                        max_conn=max_conn,
-                                        disable_pooling=disable_pooling,
-                                        database=config['database'],
-                                        host=config.get('host'),
-                                        port=config.get('port'),
-                                        user=config.get('user'),
-                                        password=config.get('password'),
-                                        debug=debug)
-
 
 def get_pool():
     return __pool_manager__

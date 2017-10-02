@@ -2,27 +2,33 @@
 __author__ = 'Masroor Ehsan'
 
 import time
+from sys import stdout
 from collections import namedtuple
 import logging
 import os
 
-from psycopg2.extras import DictCursor, NamedTupleCursor
+from psycopg2.extras import RealDictCursor, NamedTupleCursor
 
-import pool
-
+from pg_simple import pool
 
 class PgSimple(object):
     _connection = None
     _cursor = None
     _log = None
     _log_fmt = None
+    _show_sql = False
     _cursor_factory = None
     _pool = None
 
-    def __init__(self, log=None, log_fmt=None, nt_cursor=True):
-        self._log = log
-        self._log_fmt = log_fmt
-        self._cursor_factory = NamedTupleCursor if nt_cursor else DictCursor
+    def __init__(self, log=None, log_fmt=None, show_sql=False, nt_cursor=False):
+        if show_sql:
+            self._log = stdout
+            self._log_fmt = lambda x: '>> SQL: %s' % (x if isinstance(x, str) else x.query)
+        else:
+            self._log = log
+            self._log_fmt = log_fmt
+
+        self._cursor_factory = NamedTupleCursor if nt_cursor else RealDictCursor
 
         self._connect()
 
