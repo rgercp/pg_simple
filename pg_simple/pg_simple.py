@@ -9,7 +9,7 @@ import os
 
 from psycopg2.extras import RealDictCursor, NamedTupleCursor
 
-from pg_simple import pool
+from . import pool
 
 class PgSimple(object):
     _connection = None
