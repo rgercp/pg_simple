@@ -25,10 +25,16 @@ class AbstractConnectionPool(object):
         self.expiration = expiration
         self.max_conn = max_conn
         self._debug = kwargs.get('debug', False)
-        self._disable_pooling = disable_pooling  # do not pool database connections
+        # do not pool database connections
+        self._disable_pooling = disable_pooling
         if self._debug:
-            self._debug_fn = self._debug.debug if hasattr(self._debug, 'debug') else self._debug.write
-            self._debug_msg_suffix = '\n' if not hasattr(self._debug, 'debug') else ''
+            self._debug_msg_suffix = ''
+            hasdebug = hasattr(self._debug, 'debug')
+            if hasdebug:
+                self._debug_fn = self._debug.debug
+            else:
+                self._debug_msg_suffix = '\n'
+                self._debug_fn = self._debug.write
         if 'debug' in kwargs:
             del kwargs['debug']
         self._db_config = kwargs
@@ -42,7 +48,13 @@ class AbstractConnectionPool(object):
         """Debugging information logging."""
         if self._debug:
             curr_thr = threading.currentThread()
-            self._debug_fn('[%d:%s] %s%s' % (os.getpid(), curr_thr.name, msg, self._debug_msg_suffix))
+            replacer = (
+                os.getpid(),
+                curr_thr.name,
+                msg,
+                self._debug_msg_suffix
+            )
+            self._debug_fn('[%d:%s] %s%s' % replacer)
 
     def _connect(self, key=None):
         """Create a new connection and assign it to 'key' if not None."""
@@ -63,7 +75,8 @@ class AbstractConnectionPool(object):
         return conn
 
     def _release(self, conn, remove_from_pool=False):
-        if not self._disable_pooling and remove_from_pool and conn in self._pool:
+        if (not self._disable_pooling and
+                remove_from_pool and conn in self._pool):
             self._pool.remove(conn)
             del self._tused[id(conn)]
         conn.close()
@@ -109,7 +122,8 @@ class AbstractConnectionPool(object):
             if elapsed >= self.expiration:
                 expiry_list.append(item)
 
-        self._log('Purging... [pool: %d, expired: %d]' % (len(self._pool), len(expiry_list)))
+        replacer = (len(self._pool), len(expiry_list))
+        self._log('Purging... [pool: %d, expired: %d]' % replacer)
         for item in expiry_list:
             self._release(item, True)
 
@@ -141,7 +155,8 @@ class AbstractConnectionPool(object):
                     self._release(conn.close)
                 elif status != _ext.TRANSACTION_STATUS_IDLE:
                     # connection in error or in transaction
-                    self._log('Connection is in transaction. Rolling back %s' % conn)
+                    self._log(
+                        'Connection is in transaction. Rolling back %s' % conn)
                     conn.rollback()
                     self._pool.append(conn)
                 else:
@@ -149,7 +164,9 @@ class AbstractConnectionPool(object):
                     self._pool.append(conn)
                     # If the connection is closed, we just discard it.
         else:
-            self._log('Closing (pool exhausted or explicit close requested) %s' % conn)
+            self._log(
+                '''Closing (pool exhausted or
+                explicit close requested) %s''' % conn)
             self._release(conn)
 
         self._purge_expired_connections()
@@ -167,7 +184,8 @@ class AbstractConnectionPool(object):
         an already closed connection. If you call .release_all() make sure
         your code can deal with it.
         """
-        # Make sure that all connections lying about are collected before we go on.
+        # Make sure that all connections lying about
+        # are collected before we go on.
         try:
             gc.collect()
         except (TypeError, AttributeError):
@@ -207,7 +225,8 @@ class SimpleConnectionPool(AbstractConnectionPool):
     get_conn = AbstractConnectionPool._get_conn
     put_conn = AbstractConnectionPool._put_conn
     release_all = AbstractConnectionPool._release_all
-    purge_expired_connections = AbstractConnectionPool._purge_expired_connections
+    purge_expired_connections = (
+        AbstractConnectionPool._purge_expired_connections)
     _log = AbstractConnectionPool._log_internal
 
 
@@ -216,7 +235,8 @@ class ThreadedConnectionPool(AbstractConnectionPool):
 
     def __init__(self, max_conn, expiration, **kwargs):
         """Initialize the threading lock."""
-        super(ThreadedConnectionPool, self).__init__(max_conn, expiration, **kwargs)
+        super(ThreadedConnectionPool, self).__init__(
+            max_conn, expiration, **kwargs)
         self._lock = threading.Lock()
         if self._debug:
             # lock used to serialize debug output between threads
@@ -266,7 +286,12 @@ class ThreadedConnectionPool(AbstractConnectionPool):
 __pool_manager__ = None
 
 
-def config_pool(max_conn=5, expiration=60, disable_pooling=False, pool_manager=SimpleConnectionPool, **kwargs):
+def config_pool(
+        max_conn=5,
+        expiration=60,
+        disable_pooling=False,
+        pool_manager=SimpleConnectionPool,
+        **kwargs):
     global __pool_manager__
 
     config = None
@@ -282,6 +307,7 @@ def config_pool(max_conn=5, expiration=60, disable_pooling=False, pool_manager=S
                                         disable_pooling=disable_pooling,
                                         dsn=dsn,
                                         debug=debug)
+
 
 def get_pool():
     return __pool_manager__

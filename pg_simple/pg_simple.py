@@ -11,6 +11,7 @@ from psycopg2.extras import RealDictCursor, NamedTupleCursor
 
 from . import pool
 
+
 class PgSimple(object):
     _connection = None
     _cursor = None
@@ -20,15 +21,18 @@ class PgSimple(object):
     _cursor_factory = None
     _pool = None
 
-    def __init__(self, log=None, log_fmt=None, show_sql=False, nt_cursor=False):
+    def __init__(
+            self, log=None, log_fmt=None, show_sql=False, nt_cursor=False):
         if show_sql:
             self._log = stdout
-            self._log_fmt = lambda x: '>> SQL: %s' % (x if isinstance(x, str) else x.query)
+            self._log_fmt = lambda x: '>> SQL: %s' % (
+                    x if isinstance(x, str) else x.query)
         else:
             self._log = log
             self._log_fmt = log_fmt
 
-        self._cursor_factory = NamedTupleCursor if nt_cursor else RealDictCursor
+        self._cursor_factory = (
+            NamedTupleCursor if nt_cursor else RealDictCursor)
 
         self._connect()
 
@@ -37,7 +41,8 @@ class PgSimple(object):
         self._pool = pool.get_pool()
         try:
             self._connection = self._pool.get_conn()
-            self._cursor = self._connection.cursor(cursor_factory=self._cursor_factory)
+            self._cursor = self._connection.cursor(
+                cursor_factory=self._cursor_factory)
         except Exception as e:
             self._log_error('postgresql connection failed: ' + e.message)
             raise
@@ -83,7 +88,14 @@ class PgSimple(object):
         cur = self._select(table, fields, where, order, 1, offset)
         return cur.fetchone()
 
-    def fetchall(self, table, fields='*', where=None, order=None, limit=None, offset=None):
+    def fetchall(
+            self,
+            table,
+            fields='*',
+            where=None,
+            order=None,
+            limit=None,
+            offset=None):
         """Get all results
 
             table = (str) table_name
@@ -96,18 +108,36 @@ class PgSimple(object):
         cur = self._select(table, fields, where, order, limit, offset)
         return cur.fetchall()
 
-    def join(self, tables=(), fields=(), join_fields=(), where=None, order=None, limit=None, offset=None):
+    def join(
+            self,
+            tables=(),
+            fields=(),
+            join_fields=(),
+            where=None,
+            order=None,
+            limit=None, offset=None):
         """Run an inner left join query
 
             tables = (table1, table2)
-            fields = ([fields from table1], [fields from table 2])  # fields to select
-            join_fields = (field1, field2)  # fields to join. field1 belongs to table1 and field2 belongs to table 2
+            # fields to select
+            fields = ([fields from table1], [fields from table 2])
+            # fields to join. field1 belongs to
+            # table1 and field2 belongs to table 2
+            join_fields = (field1, field2)
             where = ("parameterized_statement", [parameters])
                     eg: ("id=%s and name=%s", [1, "test"])
             order = [field, ASC|DESC]
             limit = [limit1, limit2]
         """
-        cur = self._join(tables, fields, join_fields, where, order, limit, offset)
+        cur = self._join(
+            tables,
+            fields,
+            join_fields,
+            where,
+            order,
+            limit,
+            offset
+        )
         result = cur.fetchall()
 
         rows = None
@@ -133,7 +163,8 @@ class PgSimple(object):
         sql = 'UPDATE %s SET %s' % (table, query)
         sql += self._where(where) + self._returning(returning)
         values = list(data.values())
-        cur = self.execute(sql, values + where[1] if where and len(where) > 1 else values)
+        cur = self.execute(
+            sql, values + where[1] if where and len(where) > 1 else values)
         return cur.fetchall() if returning else cur.rowcount
 
     def delete(self, table, where=None, returning=None):
@@ -237,30 +268,52 @@ class PgSimple(object):
             return ' RETURNING %s' % returning
         return ''
 
-    def _select(self, table=None, fields=(), where=None, order=None, limit=None, offset=None):
+    def _select(
+            self,
+            table=None,
+            fields=(),
+            where=None,
+            order=None,
+            limit=None,
+            offset=None):
         """Run a select query"""
         sql = 'SELECT %s FROM %s' % (",".join(fields), table) \
               + self._where(where) \
               + self._order(order) \
               + self._limit(limit) \
               + self._offset(offset)
-        return self.execute(sql, where[1] if where and len(where) == 2 else None)
+        return self.execute(
+            sql, where[1] if where and len(where) == 2 else None)
 
-    def _join(self, tables=(), fields=(), join_fields=(), where=None, order=None, limit=None, offset=None):
+    def _join(
+            self,
+            tables=(),
+            fields=(),
+            join_fields=(),
+            where=None,
+            order=None,
+            limit=None,
+            offset=None):
         """Run an inner left join query"""
 
-        fields = [tables[0] + "." + f for f in fields[0]] + [tables[1] + "." + f for f in fields[1]]
+        fields = ([tables[0] + "." + f for f in fields[0]] +
+                  [tables[1] + "." + f for f in fields[1]])
 
-        sql = 'SELECT {0:s} FROM {1:s} LEFT JOIN {2:s} ON ({3:s} = {4:s})'.format(
+        template = 'SELECT {0:s} FROM {1:s} LEFT JOIN {2:s} ON ({3:s} = {4:s})'
+        sql = template.format(
             ','.join(fields),
             tables[0],
             tables[1],
             '{0}.{1}'.format(tables[0], join_fields[0]),
             '{0}.{1}'.format(tables[1], join_fields[1]))
 
-        sql += self._where(where) + self._order(order) + self._limit(limit) + self._offset(offset)
+        sql += (self._where(where) +
+                self._order(order) +
+                self._limit(limit) +
+                self._offset(offset))
 
-        return self.execute(sql, where[1] if where and len(where) > 1 else None)
+        return self.execute(
+            sql, where[1] if where and len(where) > 1 else None)
 
     def __enter__(self):
         return self
